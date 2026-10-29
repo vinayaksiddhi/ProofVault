@@ -1,0 +1,196 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  PENDING_VERIFICATION
+}
+
+enum DocumentVisibility {
+  PRIVATE
+  PUBLIC_VERIFIABLE
+}
+
+enum RegistrationStatus {
+  PENDING_UPLOAD
+  UPLOADED
+  SUBMITTED_TO_CHAIN
+  CONFIRMED_ON_CHAIN
+  REGISTRATION_FAILED
+  STALLED_NEEDS_RECONCILIATION
+}
+
+enum TxStatus {
+  NOT_STARTED
+  PENDING
+  SUBMITTED
+  CONFIRMED
+  FAILED
+  REPLACED
+}
+
+enum AuditEventType {
+  USER_REGISTERED
+  USER_LOGIN
+  USER_LOGOUT
+  DOCUMENT_UPLOADED
+  DUPLICATE_UPLOAD_BLOCKED
+  BLOCKCHAIN_SUBMITTED
+  BLOCKCHAIN_CONFIRMED
+  BLOCKCHAIN_FAILED
+  BLOCKCHAIN_REVOKED
+  VISIBILITY_CHANGED
+  VERIFICATION_ATTEMPTED
+  DOCUMENT_DOWNLOADED
+  DOCUMENT_DELETED
+}
+
+model User {
+  id           String       @id @default(uuid()) @db.Uuid
+  email        String       @unique @db.VarChar(255)
+  passwordHash String       @db.VarChar(255)
+  role         Role         @default(USER)
+  status       UserStatus   @default(ACTIVE)
+  createdAt    DateTime     @default(now()) @db.Timestamptz(6)
+  updatedAt    DateTime     @updatedAt @db.Timestamptz(6)
+
+  documents    Document[]
+  auditLogs    AuditLog[]
+  permissions  DocumentPermission[]
+
+  @@index([email])
+}
+
+model Document {
+  id                      String             @id @default(uuid()) @db.Uuid
+  ownerId                 String             @db.Uuid
+  title                   String             @db.VarChar(255)
+  description             String?            @db.Text
+  visibility              DocumentVisibility @default(PRIVATE)
+  publishTitle            Boolean            @default(true)
+  publishDescription      Boolean            @default(false)
+  originalFileName        String             @db.VarChar(255)
+  mimeType                String             @db.VarChar(100)
+  fileSize                BigInt             @db.BigInt
+  storageKey              String             @unique @db.VarChar(512)
+  sha256Hash              String             @db.Char(64)
+  hashAlgorithm           String             @default("SHA-256") @db.VarChar(32)
+  registrationStatus      RegistrationStatus @default(UPLOADED)
+  publicVerificationToken String?            @unique @db.VarChar(64)
+  isDeleted               Boolean            @default(false)
+  deletedAt               DateTime?          @db.Timestamptz(6)
+  createdAt               DateTime           @default(now()) @db.Timestamptz(6)
+  updatedAt               DateTime           @updatedAt @db.Timestamptz(6)
+
+  owner                   User               @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  registrations           BlockchainRegistration[]
+  auditLogs               AuditLog[]
+  permissions             DocumentPermission[]
+  txOperations            TransactionOperation[]
+
+  @@index([ownerId])
+  @@index([sha256Hash])
+  @@index([ownerId, sha256Hash])
+  @@index([visibility])
+  @@index([registrationStatus])
+  @@index([publicVerificationToken])
+}
+
+model BlockchainRegistration {
+  id              String       @id @default(uuid()) @db.Uuid
+  documentId      String       @db.Uuid
+  chainId         BigInt       @db.BigInt
+  contractAddress String       @db.Char(42)
+  documentKey     String       @unique @db.Char(66)
+  documentHash    String       @db.Char(66)
+  issuerAddress   String       @db.Char(42)
+  transactionHash String       @unique @db.Char(66)
+  blockNumber     BigInt?      @db.BigInt
+  status          TxStatus     @default(SUBMITTED)
+  blockTimestamp  DateTime?    @db.Timestamptz(6)
+  confirmations   Int          @default(0)
+  isRevoked       Boolean      @default(false)
+  revokedAt       DateTime?    @db.Timestamptz(6)
+  revocationReason String?     @db.Text
+  registeredAt    DateTime     @default(now()) @db.Timestamptz(6)
+  createdAt       DateTime     @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime     @updatedAt @db.Timestamptz(6)
+
+  document        Document     @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@index([transactionHash])
+  @@index([documentHash])
+  @@index([chainId, contractAddress])
+  @@index([isRevoked])
+}
+
+model DocumentPermission {
+  id            String    @id @default(uuid()) @db.Uuid
+  documentId    String    @db.Uuid
+  granteeUserId String    @db.Uuid
+  permission    String    @default("VIEW") @db.VarChar(32)
+  createdAt     DateTime  @default(now()) @db.Timestamptz(6)
+  revokedAt     DateTime? @db.Timestamptz(6)
+
+  document      Document  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  grantee       User      @relation(fields: [granteeUserId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, granteeUserId])
+  @@index([granteeUserId])
+}
+
+model AuditLog {
+  id          String         @id @default(uuid()) @db.Uuid
+  actorUserId String?        @db.Uuid
+  documentId  String?        @db.Uuid
+  eventType   AuditEventType
+  result      String         @db.VarChar(32)
+  requestId   String         @db.VarChar(64)
+  ipHash      String?        @db.VarChar(64)
+  userAgent   String?        @db.VarChar(255)
+  metadata    Json?          @db.JsonB
+  createdAt   DateTime       @default(now()) @db.Timestamptz(6)
+
+  actor       User?          @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  document    Document?      @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@index([actorUserId])
+  @@index([eventType])
+  @@index([createdAt])
+}
+
+model TransactionOperation {
+  id              String    @id @default(uuid()) @db.Uuid
+  documentId      String    @db.Uuid
+  chainId         BigInt    @db.BigInt
+  idempotencyKey  String    @unique @db.VarChar(128)
+  txHash          String?   @unique @db.Char(66)
+  nonce           Int?
+  gasPriceGwei    Decimal?  @db.Decimal(18, 8)
+  status          TxStatus  @default(PENDING)
+  retryCount      Int       @default(0)
+  maxRetries      Int       @default(3)
+  lastError       String?   @db.Text
+  createdAt       DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime  @updatedAt @db.Timestamptz(6)
+
+  document        Document  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@index([status])
+  @@index([idempotencyKey])
+}

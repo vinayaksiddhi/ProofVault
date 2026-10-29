@@ -1,0 +1,50 @@
+# Environment files (never commit secrets)
+.env
+.env.*
+!.env.example
+
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Production builds & artifacts
+dist/
+build/
+artifacts/
+cache/
+typechain-types/
+
+# Ephemeral storage and logs
+temp/storage/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Database & local data
+*.sqlite
+*.sqlite3
+pgdata/
+
+# OS and Editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Test coverage
+coverage/
+coverage.json
+
+# PostgreSQL local data
+pgdata/
+*.dump
+*.backup
+
+# Local environment and database artifacts
+.env.local
+*.sqlite-shm
+*.sqlite-wal
