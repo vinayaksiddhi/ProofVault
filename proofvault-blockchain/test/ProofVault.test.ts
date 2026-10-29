@@ -192,6 +192,14 @@ describe("ProofVault Smart Contract Test Suite", function () {
       expect(isRevoked).to.be.false;
       expect(revokedAt).to.equal(0);
     });
+
+    it("3.6 should verify that registered active document returns isRevoked = false and non-zero hash", async function () {
+      const [docHash, registeredAt, issuer, isRevoked, revokedAt] = await proofVault.getDocument(sampleDocumentKey);
+      expect(docHash).to.not.equal(ethers.ZeroHash);
+      expect(registeredAt).to.be.gt(0);
+      expect(isRevoked).to.be.false;
+      expect(revokedAt).to.equal(0);
+    });
   });
 
   describe("4. Document Revocation", function () {
@@ -279,6 +287,20 @@ describe("ProofVault Smart Contract Test Suite", function () {
       await expect(
         proofVault.connect(relayer).revokeDocument(sampleDocumentKey, exactMaxReason)
       ).to.emit(proofVault, "DocumentRevoked");
+    });
+
+    it("4.9 should confirm getDocument preserves documentHash and registeredAt after revocation", async function () {
+      const [hashBefore, regTimeBefore] = await proofVault.getDocument(sampleDocumentKey);
+      await proofVault.connect(relayer).revokeDocument(sampleDocumentKey, reasonText);
+
+      const [docHash, registeredAt, issuer, isRevoked, revokedAt] = await proofVault.getDocument(sampleDocumentKey);
+      expect(docHash).to.equal(hashBefore);
+      expect(docHash).to.equal(sampleDocumentHash);
+      expect(registeredAt).to.equal(regTimeBefore);
+      expect(registeredAt).to.be.gt(0);
+      expect(issuer).to.equal(relayer.address);
+      expect(isRevoked).to.be.true;
+      expect(revokedAt).to.be.gt(0);
     });
   });
 
