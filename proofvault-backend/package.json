@@ -12,7 +12,10 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
     "prisma:status": "prisma migrate status",
-    "test": "mocha -r ts-node/register \"test/**/*.test.ts\" --timeout 30000 --exit"
+    "test": "mocha -r ts-node/register \"test/**/*.test.ts\" --timeout 30000 --exit",
+    "test:unit": "mocha -r ts-node/register \"test/receipt-validation.test.ts\" --timeout 15000 --exit",
+    "test:db": "mocha -r ts-node/register \"test/{auth,db-connectivity,document-ingestion,document-lifecycle,coordination,blockchain-integration,reconciliation-worker}.test.ts\" --timeout 30000 --exit",
+    "test:integration": "mocha -r ts-node/register \"test/live-evm-integration.test.ts\" --timeout 90000 --exit"
   },
   "dependencies": {
     "@prisma/client": "^5.17.0",
