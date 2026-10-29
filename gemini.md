@@ -122,7 +122,11 @@
   - [x] Same-user deduplication service (Decision Q1) and cross-user privacy isolation (Decision Q2)
   - [x] Document lifecycle operations: visibility toggle, sanitized public verification DTO, revocation, soft-deletion & byte purging
   - [x] 29/29 automated integration tests passing across DB, auth, upload validation, hashing, lifecycle, and secret redaction
-- [ ] **Stage 3: Blockchain Relayer & Reconciliation Worker**
+- [x] **Stage 3: Blockchain Relayer & Reconciliation Worker (Complete & Verified)**
+  - [x] Resolved TD-011: Fixed preFlightCheck tuple mapping for document existence vs revocation state.
+  - [x] Resolved TD-007: Aligned canonical document ingestion route to `POST /api/v1/documents`.
+  - [x] 63/63 automated backend tests passing across unit, db-dependent, and live-EVM integration suites.
+  - [x] 26/26 automated smart contract tests passing with gas benchmarks verified.
 - [ ] **Stage 4: `proofvault-frontend/` Scaffolding & Implementation**
 
 ### Phase 4: Stylize (Pending Phase 3B)
@@ -144,3 +148,5 @@
 - **2026-10-11 (Phase 3A)**: Formulated Layer 1 SOPs and review documents.
 - **2026-10-12 (Phase 3B Stage 1)**: Scaffolding and implementation of `proofvault-blockchain/`. Implemented `ProofVault.sol` with OpenZeppelin `Ownable2Step`, authorized registrar access control, zero-value input guards, and 256-byte revocation reason limits. Executed 24 automated tests with 100% statement, branch, function, and line coverage. Verified local deployment on ephemeral Hardhat network (`scripts/deploy.ts`). Gas benchmarks: `registerDocument` $\approx 96,152$ gas, `revokeDocument` $\approx 53,281$ gas.
 - **2026-10-13 (Phase 3B Stage 2)**: Scaffolding and implementation of `proofvault-backend/`. Implemented PostgreSQL Prisma schema with 6 models and applied migration `20261013141639_init_core_schema`. Implemented JWT authentication, bcrypt factor 12 password hashing, isolated private file storage, magic-byte file validation, exact-byte SHA-256 calculation, same-user deduplication, cross-user privacy boundaries, and contract interface integration. Executed 29 automated tests with 100% pass rate. Verified 0 database mutations during read queries and zero secrets leaked in responses/logs.
+- **2026-10-30 (Stabilization & Verification)**: Repository stabilized across 7 disciplined commits. Secured version control ignore rules for `.env`, `coverage/`, and local database files. Resolved TD-011 existence check bug in `blockchain.service.ts` with regression tests for unregistered, registered active, and registered revoked documents. Resolved TD-007 endpoint mismatch in `live-evm-integration.test.ts`. Verified Docker PostgreSQL 16 container and applied Prisma schema. Verified live EVM integration with local Hardhat node on port 8545: document registration, hashing, DB persistence, transaction broadcast, receipt validation, worker reconciliation, on-chain verification, and revocation all pass.
+
