@@ -66,8 +66,8 @@ describe("9. Live Local Hardhat EVM Integration Verification (Stage 3 Remediatio
       const isWindows = process.platform === "win32";
 
       hardhatNodeProcess = spawn(
-        isWindows ? "cmd.exe" : "npx",
-        isWindows ? ["/c", "npx", "hardhat", "node"] : ["hardhat", "node"],
+        isWindows ? "npx.cmd" : "npx",
+        ["hardhat", "node"],
         {
           cwd: blockchainDir,
           stdio: "ignore",
@@ -90,8 +90,9 @@ describe("9. Live Local Hardhat EVM Integration Verification (Stage 3 Remediatio
       console.log("[LiveEVMTest] Local Hardhat node started successfully.");
     }
 
-    // 3. Connect ethers provider and wallets
+    // 3. Connect ethers provider, reset chain state for clean nonces, and init wallets
     provider = new JsonRpcProvider(LOCAL_RPC_URL);
+    await provider.send("hardhat_reset", []);
     deployerWallet = new Wallet(DEPLOYER_PRIVATE_KEY, provider);
     relayerWallet = new Wallet(RELAYER_PRIVATE_KEY, provider);
 
@@ -108,7 +109,9 @@ describe("9. Live Local Hardhat EVM Integration Verification (Stage 3 Remediatio
     console.log(`[LiveEVMTest] ProofVault deployed at: ${contractAddress}`);
 
     // 5. Authorize Relayer account as registrar on-chain
-    const authTx = await proofVaultContract.setRegistrar(relayerWallet.address, true);
+    const nextNonceHex = await provider.send("eth_getTransactionCount", [deployerWallet.address, "latest"]);
+    const nextNonce = parseInt(nextNonceHex, 16);
+    const authTx = await proofVaultContract.setRegistrar(relayerWallet.address, true, { nonce: nextNonce });
     await authTx.wait(1);
     const isRelayerAuthorized = await proofVaultContract.isAuthorizedRegistrar(
       relayerWallet.address
@@ -157,7 +160,7 @@ describe("9. Live Local Hardhat EVM Integration Verification (Stage 3 Remediatio
   it("9.3 should execute full live flow: upload -> SHA-256 -> DB -> transaction broadcast -> mined receipt -> worker reconciliation -> on-chain verify", async () => {
     // 1. Upload document through backend API
     const uploadRes = await request(app)
-      .post("/api/v1/documents/upload")
+      .post("/api/v1/documents")
       .set("Authorization", `Bearer ${userToken}`)
       .attach("file", SAMPLE_BUFFERS.validPdf, "live_integration_doc.pdf")
       .field("title", "Live EVM Verified Document")
@@ -217,7 +220,7 @@ describe("9. Live Local Hardhat EVM Integration Verification (Stage 3 Remediatio
   it("9.4 should execute on-chain revocation and verify read-back state", async () => {
     // 1. Upload another document for revocation testing
     const uploadRes = await request(app)
-      .post("/api/v1/documents/upload")
+      .post("/api/v1/documents")
       .set("Authorization", `Bearer ${userToken}`)
       .attach("file", SAMPLE_BUFFERS.validPdf, "revoke_integration_doc.pdf")
       .field("title", "Document to Revoke")
@@ -238,8 +241,8 @@ describe("9. Live Local Hardhat EVM Integration Verification (Stage 3 Remediatio
       .send({ reason: revokeReason });
 
     expect(revokeRes.status).to.equal(200);
-    expect(revokeRes.body.data.blockchainRegistration.isRevoked).to.be.true;
-    expect(revokeRes.body.data.blockchainRegistration.revocationReason).to.equal(revokeReason);
+    expect(revokeRes.body.data.document.blockchainRegistration.isRevoked).to.be.true;
+    expect(revokeRes.body.data.document.blockchainRegistration.revocationReason).to.equal(revokeReason);
 
     // 3. Query on-chain smart contract directly: verify matchFound is false and isRevoked is true
     const onChainVerify = await blockchainService.verifyDocument(docKey, docHashBytes32);
