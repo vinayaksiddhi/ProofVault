@@ -1,4 +1,5 @@
 import { expect } from "chai";
+import { ethers } from "ethers";
 import { blockchainService } from "../src/services/blockchain.service";
 import {
   deriveDocumentKey,
@@ -38,11 +39,61 @@ describe("5. Blockchain Integration, Reconciliation & Secret Redaction", () => {
     expect(bytes32Hex).to.have.lengthOf(66);
   });
 
-  it("5.3 should perform non-mutating pre-flight check returning false for unregistered documentKey", async () => {
-    const randomKey = deriveDocumentKey("unregistered-doc-id");
-    const preFlight = await blockchainService.preFlightCheck(randomKey);
+  describe("5.3 TD-011 Pre-flight Existence Check Regression Suite", () => {
+    const testKey = deriveDocumentKey("test-preflight-key");
+    const testHash = formatBytes32("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+    const testIssuer = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266";
+    let originalContract: any;
 
-    expect(preFlight.exists).to.be.false;
+    before(() => {
+      originalContract = blockchainService.getContract();
+    });
+
+    after(() => {
+      if (originalContract) {
+        blockchainService.setContract(originalContract);
+      }
+    });
+
+    it("5.3.1 should return exists = false for an unregistered document", async () => {
+      const mockContract = {
+        getDocument: async () => [ethers.ZeroHash, 0n, ethers.ZeroAddress, false, 0n],
+      } as any;
+      blockchainService.setContract(mockContract);
+
+      const res = await blockchainService.preFlightCheck(testKey);
+      expect(res.exists).to.be.false;
+      expect(res.isRevoked).to.be.false;
+      expect(res.documentHash).to.be.undefined;
+    });
+
+    it("5.3.2 should return exists = true and isRevoked = false for a registered active document", async () => {
+      const mockContract = {
+        getDocument: async () => [testHash, 1700000000n, testIssuer, false, 0n],
+      } as any;
+      blockchainService.setContract(mockContract);
+
+      const res = await blockchainService.preFlightCheck(testKey);
+      expect(res.exists).to.be.true;
+      expect(res.isRevoked).to.be.false;
+      expect(res.documentHash).to.equal(testHash);
+      expect(res.registeredAt).to.equal(1700000000);
+      expect(res.issuer).to.equal(testIssuer);
+    });
+
+    it("5.3.3 should return exists = true and isRevoked = true for a registered revoked document", async () => {
+      const mockContract = {
+        getDocument: async () => [testHash, 1700000000n, testIssuer, true, 1700000500n],
+      } as any;
+      blockchainService.setContract(mockContract);
+
+      const res = await blockchainService.preFlightCheck(testKey);
+      expect(res.exists).to.be.true;
+      expect(res.isRevoked).to.be.true;
+      expect(res.documentHash).to.equal(testHash);
+      expect(res.registeredAt).to.equal(1700000000);
+      expect(res.issuer).to.equal(testIssuer);
+    });
   });
 
   it("5.4 should verify BlockchainRegistration model tracks revocation state consistently", async () => {

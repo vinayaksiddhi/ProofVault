@@ -153,12 +153,18 @@ export class BlockchainService {
 
     try {
       const res = await this.contract.getDocument(documentKey);
+      const docHash = res[0];
+      const registeredAt = Number(res[1]);
+      const issuer = res[2];
+      const isRevoked = Boolean(res[3]);
+      const exists = docHash !== ethers.ZeroHash && registeredAt > 0;
+
       return {
-        exists: res[3],
-        documentHash: res[0],
-        registeredAt: Number(res[1]),
-        issuer: res[2],
-        isRevoked: res[4],
+        exists,
+        documentHash: exists ? docHash : undefined,
+        registeredAt: exists ? registeredAt : undefined,
+        issuer: exists ? issuer : undefined,
+        isRevoked: exists ? isRevoked : false,
       };
     } catch {
       return { exists: false };
